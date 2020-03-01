@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.WatchEvent;
 import java.util.HashSet;
 import java.util.Set;
@@ -53,19 +54,30 @@ public class ExecWhitelistWatchService extends AbstractWatchService {
 
     @Override
     protected WatchEvent.Kind<?>[] getWatchEventKinds(@Nullable Path directory) {
-        return new WatchEvent.Kind<?>[] { ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY };
+        return new WatchEvent.Kind<?>[]{ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY};
     }
 
     @Override
-    protected void processWatchEvent(@Nullable WatchEvent<?> event,  WatchEvent.@Nullable Kind<?> kind, @Nullable Path path) {
-        if (path.endsWith(COMMAND_WHITELIST_FILE)) {
-            commandWhitelist.clear();
-            try  {
-                Files.lines(path).forEach(commandWhitelist::add);
-                logger.debug("Updated command whitelist: {}", commandWhitelist);
-            } catch (IOException e) {
-                logger.warn("Cannot read whitelist file, exec binding commands won't be processed: {}", e.getMessage());
-            }
+    public void activate() {
+        super.activate();
+        refreshCommandWhitelist(Paths.get(COMMAND_WHITELIST_PATH + File.separator + COMMAND_WHITELIST_FILE));
+    }
+
+    @Override
+    protected void processWatchEvent(@Nullable WatchEvent<?> event, WatchEvent.@Nullable Kind<?> kind, @Nullable Path path) {
+        if (path.normalize().equals(Paths.get(COMMAND_WHITELIST_PATH + File.separator + COMMAND_WHITELIST_FILE).normalize())) {
+            refreshCommandWhitelist(path);
+        }
+    }
+
+    private void refreshCommandWhitelist(Path filePath) {
+        commandWhitelist.clear();
+        try {
+            Files.lines(filePath)
+                    .forEach(commandWhitelist::add);
+            logger.info("Refresh command whitelist: {}", commandWhitelist);
+        } catch (IOException e) {
+            logger.warn("Cannot read whitelist file, exec binding commands won't be processed: {}", e.getMessage());
         }
     }
 
